@@ -103,6 +103,45 @@ class Rescale(object):
 
         return {'image': img, 'keypoints': key_pts}
 
+class RandomRescale(object):
+    """Rescale the image in a sample to a given size.
+
+    Args:
+        output_size (tuple or int): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        self.output_size = output_size
+
+    def __call__(self, sample):
+
+        image, key_pts = sample['image'], sample['keypoints']
+        h, w = image.shape[:2]
+        
+        key_x_size = key_pts[:,0].max() - key_pts[:,0].min()
+        key_y_size = key_pts[:,1].max() - key_pts[:,1].min()
+        
+        biggest_key_side = max(key_x_size, key_y_size)
+        
+        min_rescale_factor = self.output_size/min(h,w)
+        max_rescale_factor = self.output_size/(biggest_key_side-2)
+        
+        scale_factor = np.random.uniform(min_rescale_factor, max_rescale_factor)
+        
+        #print("Scale factor: {} ".format(scale_factor))
+        
+        new_h, new_w = int(h * scale_factor), int(w * scale_factor)
+
+        img = cv2.resize(image, (new_w, new_h))
+        #print("New image size: {}".format(img.shape))
+        
+        # scale the pts, too
+        key_pts = key_pts * [new_w / w, new_h / h]
+
+        return {'image': img, 'keypoints': key_pts}
 
 class RandomCrop(object):
     """Crop randomly the image in a sample.
