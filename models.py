@@ -10,90 +10,79 @@ import torch.nn.init as I
 
 class Net(nn.Module):
 
-    def __init__(self):
+    def __init__(self, image_size, depth):
         super(Net, self).__init__()
 
+        kernel_size_5 = 5
         conv1_channels = 32
-        conv2_channels = conv1_channels * 2
-        conv3_channels = conv2_channels * 2
-        conv4_channels = conv3_channels * 2
+        conv1_output_size = image_size - kernel_size_5 + 1
+        pool1_output_size = int(conv1_output_size/2)
+        
+        conv2_channels = 48
+        conv2_output_size = pool1_output_size - kernel_size_5 + 1
+        pool2_output_size = int(conv2_output_size/2)
+        
+        kernel_size_3 = 3
+        conv3_channels = 48
+        conv3_output_size = pool2_output_size - kernel_size_3 + 1
+        pool3_output_size = int(conv3_output_size/2)
+        
+        conv4_channels = 64
+        conv4_output_size = pool3_output_size - kernel_size_3 + 1
+        pool4_output_size = int(conv4_output_size/2)
+        
         fc1_channels = 4096
         fc2_channels = 1028
-        output_channels = 2*68
-        weight_std = 0.005
-        weight_mean = 0.0
         
-        # 1 input image channel (grayscale), 64 output channels/feature maps
+        output_channels = 2*68
+        
+        # Convolutional layer 1
+        # depth input image channels, 64 output channels/feature maps
         # 5x5 square convolution kernel
-        ## output size = (W-F)/S +1 = (224-5)/1 +1 = 220
-        # the output Tensor for one image, will have the dimensions: (64, 220, 220)
-        self.conv1 = nn.Conv2d(1, conv1_channels, 5)
-        self.conv1.weight.data.normal_(std=weight_std, mean=weight_mean)
+        self.conv1 = nn.Conv2d(depth, conv1_channels, kernel_size_5)
         
         # maxpool layer
         # pool with kernel_size=2, stride=2
-        # the output Tensor for one image, will have the dimensions: (64, 110, 110)
         self.pool1 = nn.MaxPool2d(2, 2)
 
-        # 64 input image channel, 128 output channels/feature maps
+        # Convolutional layer 2
         # 5x5 square convolution kernel
-        ## output size = (W-F)/S +1 = (110-5)/1 +1 = 106
-        # the output Tensor will have the dimensions: (128, 106, 106)
-        self.conv2 = nn.Conv2d(conv1_channels, conv2_channels, 5)
-        self.conv2.weight.data.normal_(std=weight_std, mean=weight_mean)
+        self.conv2 = nn.Conv2d(conv1_channels, conv2_channels, kernel_size_5)
 
-        # maxpool layer
+        # maxpool layer 2
         # pool with kernel_size=2, stride=2
-        # the output Tensor for one image, will have the dimensions: (128, 53, 53)
         self.pool2 = nn.MaxPool2d(2, 2)
 
-        # 128 input image channel, 256 output channels/feature maps
+        # Convolutional layer 3
         # 3x3 square convolution kernel
-        ## output size = (W-F)/S +1 = (53-3)/1 +1 = 51
-        # the output Tensor will have the dimensions: (256, 51, 51)
-        self.conv3 = nn.Conv2d(conv2_channels, conv3_channels, 3)
-        self.conv3.weight.data.normal_(std=weight_std, mean=weight_mean)
+        self.conv3 = nn.Conv2d(conv2_channels, conv3_channels, kernel_size_3)
 
-        # maxpool layer
+        # maxpool layer 3
         # pool with kernel_size=2, stride=2
-        # the output Tensor will have the dimensions: (256, 25, 25)
         self.pool3 = nn.MaxPool2d(2, 2)
 
-        # 256 input image channel, 512 output channels/feature maps
+        # Convolutional layer 3
         # 3x3 square convolution kernel
-        ## output size = (W-F)/S +1 = (25-3)/1 +1 = 23
-        # the output Tensor will have the dimensions: (512, 23, 23)
-        self.conv4 = nn.Conv2d(conv3_channels, conv4_channels, 3)
-        self.conv4.weight.data.normal_(std=weight_std, mean=weight_mean)
+        self.conv4 = nn.Conv2d(conv3_channels, conv4_channels, kernel_size_3)
 
-        # maxpool layer
+        # maxpool layer 4
         # pool with kernel_size=2, stride=2
-        # the output Tensor will have the dimensions: (512, 11, 11)
         self.pool4 = nn.MaxPool2d(2, 2)
 
-        # 512 outputs * the 11*11 filtered/pooled map size
-        self.fc1 = nn.Linear(conv4_channels*11*11, fc1_channels)
-        self.fc1.weight.data.normal_(std=weight_std, mean=weight_mean)
+        # Linear layer 1
+        self.fc1 = nn.Linear(conv4_channels*pool4_output_size*pool4_output_size, fc1_channels)
         
         # dropout with p=0.4
         self.fc1_drop = nn.Dropout(p=0.4)
 
-        # 64 outputs * the 25*25 filtered/pooled map size
-        self.fc2 = nn.Linear(fc1_channels, fc2_channels)
-        self.fc2.weight.data.normal_(std=weight_std, mean=weight_mean)
+        # Linear layer 2
+        self.fc2 = nn.Linear(fc1_channels, fc2_channels)        
         
-        # dropout with p=0.4
-        self.fc2_drop = nn.Dropout(p=0.4)
-        
-        # finally, create 2*68 output channels (for the 68 keypoints)
+        # 2*68 output channels (for the 68 keypoints)
         self.output = nn.Linear(fc2_channels, output_channels)
-        self.output.weight.data.normal_(std=weight_std, mean=weight_mean)
-
-        
+       
         
     def forward(self, x):
-        ## TODO: Define the feedforward behavior of this model
-        ## x is the input image and, as an example, here you may choose to include a pool/conv step:
         x = self.pool1(F.relu(self.conv1(x)))
         x = self.pool2(F.relu(self.conv2(x)))
         x = self.pool3(F.relu(self.conv3(x)))
@@ -102,12 +91,10 @@ class Net(nn.Module):
         # prep for linear layer
         x = x.view(x.size(0), -1)
 
-        # 3 linear layers with dropout in between
+        # 2 linear layers with dropout in between
         x = F.relu(self.fc1(x))
         x = self.fc1_drop(x)
         x = F.relu(self.fc2(x))
-        x = self.fc2_drop(x)
         x = self.output(x)
-        
-        # a modified x, having gone through all the layers of your model, should be returned
+
         return x

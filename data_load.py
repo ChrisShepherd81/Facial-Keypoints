@@ -29,7 +29,7 @@ class FacialKeypointsDataset(Dataset):
     def __getitem__(self, idx):
         image_name = os.path.join(self.root_dir,
                                 self.key_pts_frame.iloc[idx, 0])
-        
+        #print(image_name)
         image = mpimg.imread(image_name)
         
         # if image has an alpha color channel, get rid of it
@@ -48,7 +48,6 @@ class FacialKeypointsDataset(Dataset):
 
     
 # tranforms
-
 class Normalize(object):
     """Convert a color image to grayscale and normalize the color range to [0,1]."""        
 
@@ -63,12 +62,9 @@ class Normalize(object):
         
         # scale color range from [0, 255] to [0, 1]
         image_copy=  image_copy/255.0
-            
         
         # scale keypoints to be centered around 0 with a range of [-1, 1]
-        # mean = 100, sqrt = 50, so, pts should be (pts - 100)/50
-        key_pts_copy = (key_pts_copy - 100)/50.0
-
+        key_pts_copy = (key_pts_copy - image_copy.shape[0])/(image_copy.shape[0]/2)
 
         return {'image': image_copy, 'keypoints': key_pts_copy}
 
@@ -127,11 +123,21 @@ class RandomCrop(object):
     def __call__(self, sample):
         image, key_pts = sample['image'], sample['keypoints']
 
-        h, w = image.shape[:2]
+        img_h, img_w = image.shape[:2]
         new_h, new_w = self.output_size
+        
+        key_x_size = key_pts[:,0].min(), key_pts[:,0].max()
+        key_y_size = key_pts[:,1].min(), key_pts[:,1].max()
+        
+        #print("Keypoints {}:{}".format(key_x_size, key_y_size))
 
-        top = np.random.randint(0, h - new_h)
-        left = np.random.randint(0, w - new_w)
+        max_crop_h = img_h - new_h
+        max_crop_w = img_w - new_w
+        
+        assert max_crop_w >= 0 and max_crop_h >= 0
+        
+        top = np.random.randint(0, max(1, min(key_y_size[0], max_crop_h)))
+        left = np.random.randint(0,max(1, min(key_x_size[0], max_crop_w)))
 
         image = image[top: top + new_h,
                       left: left + new_w]
