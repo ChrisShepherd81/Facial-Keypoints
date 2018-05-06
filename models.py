@@ -44,6 +44,9 @@ class Net(nn.Module):
         # maxpool layer
         # pool with kernel_size=2, stride=2
         self.pool1 = nn.MaxPool2d(2, 2)
+        
+        # Dropout layer 1
+        self.dropout1 = nn.Dropout2d(p=0.2)
 
         # Convolutional layer 2
         # 5x5 square convolution kernel
@@ -52,6 +55,9 @@ class Net(nn.Module):
         # maxpool layer 2
         # pool with kernel_size=2, stride=2
         self.pool2 = nn.MaxPool2d(2, 2)
+        
+        # Dropout layer 2
+        self.dropout2 = nn.Dropout2d(p=0.2)
 
         # Convolutional layer 3
         # 3x3 square convolution kernel
@@ -60,6 +66,9 @@ class Net(nn.Module):
         # maxpool layer 3
         # pool with kernel_size=2, stride=2
         self.pool3 = nn.MaxPool2d(2, 2)
+        
+        # Dropout layer 3
+        self.dropout3 = nn.Dropout2d(p=0.2)
 
         # Convolutional layer 3
         # 3x3 square convolution kernel
@@ -84,8 +93,11 @@ class Net(nn.Module):
         
     def forward(self, x):
         x = self.pool1(F.relu(self.conv1(x)))
+        x = self.dropout1(x)
         x = self.pool2(F.relu(self.conv2(x)))
+        x = self.dropout2(x)
         x = self.pool3(F.relu(self.conv3(x)))
+        x = self.dropout3(x)
         x = self.pool4(F.relu(self.conv4(x)))
 
         # prep for linear layer
