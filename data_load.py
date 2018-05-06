@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.image as mpimg
 import pandas as pd
 import cv2
-
+import math
 
 class FacialKeypointsDataset(Dataset):
     """Face Landmarks dataset."""
@@ -45,12 +45,18 @@ class FacialKeypointsDataset(Dataset):
 
         return sample
     
-
-    
 # tranforms
 
 class Normalize(object):
     """Convert a color image to grayscale and normalize the color range to [0,1]."""        
+
+    def __init__(self, rgb, size):
+        """
+        Args:
+            rgb (bool): Normalize grey picture or use rgb
+        """
+        self.rgb = rgb
+        self.size = size
 
     def __call__(self, sample):
         image, key_pts = sample['image'], sample['keypoints']
@@ -59,18 +65,59 @@ class Normalize(object):
         key_pts_copy = np.copy(key_pts)
 
         # convert image to grayscale
-        image_copy = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        if not self.rgb:
+            image_copy = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         
         # scale color range from [0, 255] to [0, 1]
         image_copy=  image_copy/255.0
-            
         
         # scale keypoints to be centered around 0 with a range of [-1, 1]
-        # mean = 100, sqrt = 50, so, pts should be (pts - 100)/50
-        key_pts_copy = (key_pts_copy - 100)/50.0
+        key_pts_copy = (key_pts_copy - (self.size/2.0))/ (self.size/2.0)
 
 
         return {'image': image_copy, 'keypoints': key_pts_copy}
+
+class RescaleToKeypoints(object):
+    """Rescale the image in a sample to a given size.
+
+    Args:
+        output_size (tuple or int): Desired output size. If tuple, output is
+            matched to output_size. If int, smaller of image edges is matched
+            to output_size keeping aspect ratio the same.
+    """
+
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        self.output_size = output_size
+
+    def __call__(self, sample):
+        image, key_pts = sample['image'], sample['keypoints']
+
+        h, w = image.shape[:2]
+        
+        max_key_x = int(math.ceil(key_pts[:, 0].max()))
+        min_key_x = int(math.floor(key_pts[:, 0].min()))
+        
+        max_key_y = int(math.ceil(key_pts[:, 1].max()))
+        min_key_y = int(math.floor(key_pts[:, 1].min()))
+                        
+        key_w = max_key_x - min_key_x
+        key_h = max_key_y - min_key_y
+        
+        if  key_h > key_w:
+            zoom_factor = self.output_size / key_h
+        else:
+            zoom_factor = self.output_size / key_w
+
+        new_h, new_w = int(h*zoom_factor), int(w*zoom_factor)
+
+        img = cv2.resize(image, (new_w, new_h))
+        
+        # scale the pts, too
+        key_pts = key_pts * [new_w / w, new_h / h]
+
+        return {'image': img, 'keypoints': key_pts}
+
 
 
 class Rescale(object):
@@ -130,8 +177,11 @@ class RandomCrop(object):
         h, w = image.shape[:2]
         new_h, new_w = self.output_size
 
-        top = np.random.randint(0, h - new_h)
-        left = np.random.randint(0, w - new_w)
+        top_max = min(max(key_pts[:,1].max() - new_h, 0), h - new_h - 1)
+        left_max = min(max(key_pts[:,0].max() - new_w, 0), w - new_w - 1)
+    
+        top = np.random.randint(top_max, h - new_h)
+        left = np.random.randint(left_max, w - new_w)
 
         image = image[top: top + new_h,
                       left: left + new_w]
@@ -140,6 +190,69 @@ class RandomCrop(object):
 
         return {'image': image, 'keypoints': key_pts}
 
+class KeypointCrop(object):
+    """Crop the image in a sample according to keypoints.
+
+    Args:
+        output_size (tuple or int): Desired output size. If int, square crop
+            is made.
+    """
+
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        if isinstance(output_size, int):
+            self.output_size = (output_size, output_size)
+        else:
+            assert len(output_size) == 2
+            self.output_size = output_size
+
+    def __call__(self, sample):
+        image, key_pts = sample['image'], sample['keypoints']
+
+        h, w = image.shape[:2]
+        new_h, new_w = self.output_size
+        
+        assert image.shape[:2] > self.output_size, "Image scale not valid: {0} < {1}".format(image.shape[:2], self.output_size)
+        
+        #Get the keypoints rectangle points
+        max_key_x = int(math.ceil(key_pts[:, 0].max()))
+        min_key_x = int(math.floor(key_pts[:, 0].min()))
+        
+        max_key_y = int(math.ceil(key_pts[:, 1].max()))
+        min_key_y = int(math.floor(key_pts[:, 1].min()))
+        
+        #Calculate keypoints size w, h
+        keypoints_size = (max_key_x - min_key_x, max_key_y - min_key_y)
+        
+        #keypoints size smaller than new size
+        if keypoints_size < self.output_size:
+            
+            diff_x = new_w - keypoints_size[0]
+            diff_y = new_h - keypoints_size[1]
+            
+            left = int(min_key_x - diff_x/2)
+            top = int(min_key_y - diff_y/2)
+
+            #check left and top values and adjust
+            if top + new_h > h:
+                top -= top + new_h - h
+                
+            if left + new_w > w:
+                left -= left + new_w - w
+
+            # crop the image
+            image = image[top: top + new_h,
+                          left: left + new_w]
+            
+            key_pts = key_pts - [left, top]
+
+            return {'image': image, 'keypoints': key_pts}
+        
+        #keypoints size bigger than new size
+        else:
+            assert false, "Keypoint size error"
+        
+        return {'image': image, 'keypoints': key_pts}
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
