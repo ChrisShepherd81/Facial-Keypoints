@@ -127,7 +127,7 @@ class RandomRescale(object):
         biggest_key_side = max(key_x_size, key_y_size)
         
         min_rescale_factor = self.output_size/min(h,w)
-        max_rescale_factor = self.output_size/(biggest_key_side-2)
+        max_rescale_factor = self.output_size/(biggest_key_side)
         
         scale_factor = np.random.uniform(min_rescale_factor, max_rescale_factor)
         
@@ -167,16 +167,20 @@ class RandomCrop(object):
         
         key_x_size = key_pts[:,0].min(), key_pts[:,0].max()
         key_y_size = key_pts[:,1].min(), key_pts[:,1].max()
-        
-        #print("Keypoints {}:{}".format(key_x_size, key_y_size))
+
+        #print("Image shape {}".format(image.shape[:2]))
+        #print("New shape {}".format(self.output_size))
+        #print("Keypoints x:y {}:{}".format(key_x_size, key_y_size))
 
         max_crop_h = img_h - new_h
         max_crop_w = img_w - new_w
         
         assert max_crop_w >= 0 and max_crop_h >= 0
+
+        #print("top {},{}".format(key_y_size[1] - new_h, max(1, min(key_y_size[0], max_crop_h))))
         
-        top = np.random.randint(0, max(1, min(key_y_size[0], max_crop_h)))
-        left = np.random.randint(0,max(1, min(key_x_size[0], max_crop_w)))
+        top = np.random.randint(max(0,key_y_size[1] - new_h), max(1, min(key_y_size[0], max_crop_h)))
+        left = np.random.randint(max(0,key_x_size[1] - new_w),max(1, min(key_x_size[0], max_crop_w)))
 
         image = image[top: top + new_h,
                       left: left + new_w]
