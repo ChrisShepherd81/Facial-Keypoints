@@ -40,6 +40,7 @@ class Net(nn.Module):
         # depth input image channels, 64 output channels/feature maps
         # 5x5 square convolution kernel
         self.conv1 = nn.Conv2d(depth, conv1_channels, kernel_size_5)
+        self.conv1_bn = nn.BatchNorm2d(conv1_channels)
         
         # maxpool layer
         # pool with kernel_size=2, stride=2
@@ -51,6 +52,7 @@ class Net(nn.Module):
         # Convolutional layer 2
         # 5x5 square convolution kernel
         self.conv2 = nn.Conv2d(conv1_channels, conv2_channels, kernel_size_5)
+        self.conv2_bn = nn.BatchNorm2d(conv2_channels)
 
         # maxpool layer 2
         # pool with kernel_size=2, stride=2
@@ -62,6 +64,7 @@ class Net(nn.Module):
         # Convolutional layer 3
         # 3x3 square convolution kernel
         self.conv3 = nn.Conv2d(conv2_channels, conv3_channels, kernel_size_3)
+        self.conv3_bn = nn.BatchNorm2d(conv3_channels)
 
         # maxpool layer 3
         # pool with kernel_size=2, stride=2
@@ -70,9 +73,10 @@ class Net(nn.Module):
         # Dropout layer 3
         self.dropout3 = nn.Dropout2d(p=0.2)
 
-        # Convolutional layer 3
+        # Convolutional layer 4
         # 3x3 square convolution kernel
         self.conv4 = nn.Conv2d(conv3_channels, conv4_channels, kernel_size_3)
+        self.conv4_bn = nn.BatchNorm2d(conv4_channels)
 
         # maxpool layer 4
         # pool with kernel_size=2, stride=2
@@ -80,6 +84,8 @@ class Net(nn.Module):
 
         # Linear layer 1
         self.fc1 = nn.Linear(conv4_channels*pool4_output_size*pool4_output_size, fc1_channels)
+
+        self.fc1_bn = nn.BatchNorm1d(fc1_channels)
         
         # dropout with p=0.4
         self.fc1_drop = nn.Dropout(p=0.4)
@@ -92,19 +98,19 @@ class Net(nn.Module):
        
         
     def forward(self, x):
-        x = self.pool1(F.relu(self.conv1(x)))
+        x = F.relu(self.pool1(self.conv1_bn(self.conv1(x))))
         x = self.dropout1(x)
-        x = self.pool2(F.relu(self.conv2(x)))
+        x = F.relu(self.pool2(self.conv2_bn(self.conv2(x))))
         x = self.dropout2(x)
-        x = self.pool3(F.relu(self.conv3(x)))
+        x = F.relu(self.pool3(self.conv3_bn(self.conv3(x))))
         x = self.dropout3(x)
-        x = self.pool4(F.relu(self.conv4(x)))
+        x = F.relu(self.pool4(self.conv4_bn(self.conv4(x))))
 
         # prep for linear layer
         x = x.view(x.size(0), -1)
 
         # 2 linear layers with dropout in between
-        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc1_bn(self.fc1(x)))
         x = self.fc1_drop(x)
         x = F.relu(self.fc2(x))
         x = self.output(x)
