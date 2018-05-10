@@ -10,7 +10,7 @@ import torch.nn.init as I
 
 class Net(nn.Module):
 
-    def __init__(self, image_size, depth):
+    def __init__(self, image_size=224, depth=1):
         super(Net, self).__init__()
 
         kernel_size_5 = 5
