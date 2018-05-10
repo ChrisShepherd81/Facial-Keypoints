@@ -2,3 +2,4 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 /data/training_frames_keypoints.csv.bak
+/saved_models
